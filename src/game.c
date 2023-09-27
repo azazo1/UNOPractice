@@ -3,6 +3,18 @@
 //
 #include "game.h"
 
+void initGame() {
+    oneGame.gameState = BEFORE_START;
+    oneGame.playerCount = 0;
+    oneGame.currentPlayerIndex = 0;
+    oneGame.roundCount = 0;
+    oneGame.turningDirection = TRUE;
+    oneGame.availableCardsCount = MAX_CARDS;
+    for (int i = 0; i < MAX_CARDS; ++i) {
+        oneGame.cardOwned[i] = FALSE;
+    }
+    initCards();
+}
 
 void initCards() {
     int ptr = 0;
@@ -34,6 +46,32 @@ void initCards() {
     }
 }
 
-int sendCards() {
+void distributeCards() {
+    srand(time(NULL));
+    for (int playerIndex = 0; playerIndex < oneGame.playerCount; ++playerIndex) {
+        for (int _ = 0; _ < 7; _++) { // 每个角色取七张牌
+            int target = randomSelectAvailableCard();
+            // 选到目标牌
+            markCard(target);
+            putCard(&oneGame.players[playerIndex], target);
+        }
+    }
+}
 
+int randomSelectAvailableCard() {
+    int selected = rand() % oneGame.availableCardsCount; // 第 selected 个可用的牌
+    int skipped = 0; // 已跳过的可用牌数
+    int target = 0; // 目标牌索引
+    while (skipped < selected || oneGame.cardOwned[target]) {
+        if (!oneGame.cardOwned[target]) {
+            skipped++;
+        }
+        target++;
+    }
+    return target;
+}
+
+void markCard(int cardIndex) {
+    oneGame.cardOwned[cardIndex] = TRUE;
+    oneGame.availableCardsCount--;
 }

@@ -4,7 +4,8 @@
 
 #ifndef UNO_CARD_H
 #define UNO_CARD_H
-
+#define TRUE 1
+#define FALSE 0
 // 卡牌符号合集 {
 #define NUMBER_0 0
 #define NUMBER_1 1

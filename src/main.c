@@ -5,11 +5,7 @@
 #include "game.h"
 
 int main() {
-    initCards();
-    for (int i = 0; i < MAX_CARDS; i++) {
-        char out[4];
-        cardToStr(&oneGame.cardLib[i], out);
-        printf("%s\n", out);
-    }
+    initGame();
+    distributeCards();
     return 0;
 }

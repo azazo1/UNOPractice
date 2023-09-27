@@ -7,4 +7,6 @@ add_executable(UNO src/main.c
         src/card.h
         src/game.h
         src/game.c
-        src/card.c)
+        src/card.c
+        src/player.c
+        src/player.h)
