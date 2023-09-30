@@ -10,8 +10,11 @@
 #include <stdio.h>
 #include "card.h"
 #include "player.h"
+#include "client.h"
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
+#include <limits.h>
 
 typedef enum {
     BEFORE_START, RUNNING, END
@@ -20,12 +23,15 @@ typedef enum {
 typedef struct { // 储存一局游戏中的信息
     int playerCount;
     int currentPlayerIndex;
-    int roundCount;
+    char currentColor; // 当前可打出的颜色, 初始为 char 最大值
+    char currentSignal; // 当前可打出的牌类型, 初始为 char 最大值
     int availableCardsCount;
     _Bool turningDirection; // 该变量用于翻转卡, true则正向增大, false则反向减小
     GameState gameState;
     Card cardLib[MAX_CARDS]; // 牌库
     _Bool cardOwned[MAX_CARDS]; // 用于储存牌是否被占有
+    int cardThrown[MAX_CARDS]; // 弃牌库
+    int cardThrownCount; // 已弃牌数
     Player players[MAX_PLAYERS];
 } Game;
 
@@ -46,9 +52,50 @@ void distributeCards();
  * 从未占用牌堆中随机选一张牌, 返回该牌在牌堆中的序号, 请在使用前设置随机种子
  * */
 int randomSelectAvailableCard();
+
 /**
  * 从可用牌堆中取牌标记为已占用, 但是并不检查此牌是否原来可用
  * */
-void markCard(int cardIndex);
+void markCardAsDistributed(int cardIndex);
+
+/**
+ * 游戏主循环
+ * */
+void gamingLoop();
+
+/**
+ * 广播消息至所有玩家
+ * */
+void broadcast(int code);
+
+/**
+ * 广播消息至所有玩家，带内容
+ * */
+void broadcastWithContent(int code, char *content);
+
+/**
+ * 将牌放入弃牌堆
+ * */
+void markCardAsThrown(int cardIndex);
+
+/**
+ * 卡牌生效, 只对除了 变色 和 +4 以外的牌能正常起作用
+ * */
+void takeEffect(int cardIndex);
+
+/**
+ * 特殊卡牌(+4/变色)生效
+ * */
+void takeEffectEx(int cardIndex, char targetColor);
+
+/**
+ * 检查该牌是否可被发出
+ * */
+_Bool checkCanPlace(int cardIndex);
+
+/**
+ * 获取下一位出牌玩家的序号
+ * */
+inline int getNextPlayerIndex();
 
 #endif //UNO_GAME_H

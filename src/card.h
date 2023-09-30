@@ -25,11 +25,11 @@
 // }
 
 // 卡牌颜色合集 {
-#define R 0
-#define G 1
-#define B 2
-#define Y 3
-#define NO_COLOR 4
+#define R 'r'
+#define G 'g'
+#define B 'b'
+#define Y 'y'
+#define NO_COLOR 'n'
 // }
 #define MAX_CARDS 108
 

@@ -9,4 +9,7 @@ add_executable(UNO src/main.c
         src/game.c
         src/card.c
         src/player.c
-        src/player.h)
+        src/player.h
+        src/client.c
+        src/client.h
+        src/msg.h)

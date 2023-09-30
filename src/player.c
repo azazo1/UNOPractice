@@ -10,7 +10,7 @@ void putCard(Player *player, int cardIndex) {
 
 _Bool throwCard(Player *player, int cardIndex) {
     int found;
-    for (found = 0; found < player->ownedCount; ++found) {
+    for (found = 0; found <= player->ownedCount; ++found) { // 等于号表示搜索到了最后也没找到，用于下文判断
         if (player->ownedCards[found] == cardIndex) {
             break;
         }
@@ -21,6 +21,5 @@ _Bool throwCard(Player *player, int cardIndex) {
     for (int i = found; i < player->ownedCount; i++) { // 所有元素往前移
         player->ownedCards[i] = player->ownedCards[i + 1];
     }
-    // todo 做判断看此牌是否能放出, 或者game处判断得到不能放出再调用putCard放回
     return TRUE;
 }

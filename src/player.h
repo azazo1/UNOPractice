@@ -11,6 +11,7 @@ typedef struct {
     int index;
     int ownedCards[MAX_CARDS];
     int ownedCount; // 拥有牌数
+    // todo 实现套接字操作 Client *client;
 } Player;
 
 /**
@@ -19,7 +20,7 @@ typedef struct {
 void putCard(Player *player, int cardIndex);
 
 /**
- * 玩家从手牌上出牌, 返回是否成功出牌
+ * 玩家从手牌上出牌, 返回该牌原本是否在手牌中
  * */
 _Bool throwCard(Player *player, int cardIndex);
 
