@@ -10,6 +10,10 @@ add_executable(UNO src/main.c
         src/card.c
         src/player.c
         src/player.h
-        src/client.c
-        src/client.h
-        src/msg.h)
+        src/toclient.c
+        src/toclient.h
+        src/msg.h
+        src/server.c
+        src/server.h
+        src/msg.c)
+target_link_libraries(UNO wsock32 ws2_32) # 我的妈终于好了 https://stackoverflow.com/questions/15119639/how-to-link-winsock-in-cmake

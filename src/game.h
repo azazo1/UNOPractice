@@ -10,7 +10,8 @@
 #include <stdio.h>
 #include "card.h"
 #include "player.h"
-#include "client.h"
+#include "toclient.h"
+#include "server.h"
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -42,6 +43,11 @@ void initGame();
 void initCards();
 
 /**
+ * 初始化玩家结构体
+ * */
+void initPlayers();
+
+/**
  * 发牌器:
  * 第一次抽牌, 从未占用牌库中选取牌号, 并标记该牌为已占用.
  * 第二次抽牌时, 以剩余牌数为最大量取随机数 i, 依次遍历找到未占用牌库中序号为 i 的牌, 并标记为已占用.
@@ -51,7 +57,7 @@ void distributeCards();
 /**
  * 从未占用牌堆中随机选一张牌, 返回该牌在牌堆中的序号, 请在使用前设置随机种子
  * */
-int randomSelectAvailableCard();
+int randomlySelectAvailableCard();
 
 /**
  * 从可用牌堆中取牌标记为已占用, 但是并不检查此牌是否原来可用
@@ -66,12 +72,12 @@ void gamingLoop();
 /**
  * 广播消息至所有玩家
  * */
-void broadcast(int code);
+void broadcast(char code);
 
 /**
  * 广播消息至所有玩家，带内容
  * */
-void broadcastWithContent(int code, char *content);
+void broadcastWithContent(char code, char *content);
 
 /**
  * 将牌放入弃牌堆
@@ -96,6 +102,26 @@ _Bool checkCanPlace(int cardIndex);
 /**
  * 获取下一位出牌玩家的序号
  * */
-inline int getNextPlayerIndex();
+int getNextPlayerIndex();
+
+/**
+ * 获取上一位出牌玩家的序号
+ * */
+int getPrePlayerIndex();
+
+/**
+ * 产生游戏得分结果
+ * */
+void summonResult(char *rst);
+
+/**
+ * 随机选取第一个出牌的玩家
+ * */
+void randomlyChooseStarter();
+
+/**
+ * 进入下一个玩家的回合
+ * */
+void enterNextPlayerRound();
 
 #endif //UNO_GAME_H

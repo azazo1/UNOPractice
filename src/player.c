@@ -21,5 +21,6 @@ _Bool throwCard(Player *player, int cardIndex) {
     for (int i = found; i < player->ownedCount; i++) { // 所有元素往前移
         player->ownedCards[i] = player->ownedCards[i + 1];
     }
+    player->ownedCount--;
     return TRUE;
 }

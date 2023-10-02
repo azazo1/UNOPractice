@@ -5,13 +5,16 @@
 #ifndef UNO_PLAYER_H
 #define UNO_PLAYER_H
 
+#include <winsock2.h>
 #include "card.h"
 
 typedef struct {
     int index;
     int ownedCards[MAX_CARDS];
     int ownedCount; // 拥有牌数
-    // todo 实现套接字操作 Client *client;
+    SOCKET *client;
+    _Bool doubted; // 该轮是否被质疑过
+    _Bool claimedUNO; // 该轮是否宣布UNO过
 } Player;
 
 /**

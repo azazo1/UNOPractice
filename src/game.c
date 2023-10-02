@@ -4,31 +4,39 @@
 #include "game.h"
 
 void gamingLoop() { // 在接收完客户端后调用
-    while (oneGame.gameState == RUNNING) { // todo 添加结束判断
+    while (oneGame.gameState == RUNNING) {
         char msg[50];
-        int playerIndex = receiveMsg(msg); // 获取客户端发来的第一条消息
+        int msgLength;
+        int playerIndex = receiveMsg(msg, &msgLength); // 获取客户端发来的第一条消息
+        if (playerIndex == -1) {
+            printf("Socket Exception occurred, game stopped.\n");
+            oneGame.gameState = END;
+            return;
+        }
+        Player *player = &oneGame.players[playerIndex];
         const char msgType = parseMsgType(msg);
         if (msgType == MSG_PLACE_CARD) {
             // 检查是否是该玩家的回合
             if (playerIndex != oneGame.currentPlayerIndex) {
-                sendMsg(playerIndex, MSG_NOT_YOUR_TURN);
+                sendMsg(player, MSG_NOT_YOUR_TURN);
                 continue;
             }
             // 检查此牌是否可出
             char s_cardIndex[5]; // 可能还会追加一个颜色字符
             int cardIndex;
-            parseMsgContent(msg, s_cardIndex);
+            int length;
+            parseMsgContent(msg, s_cardIndex, &length);
             if (sscanf(s_cardIndex, "%d", &cardIndex) == 1) {
                 // 检查牌是否在该玩家的手牌中在则打出该牌
-                _Bool inHand = throwCard(&oneGame.players[playerIndex], cardIndex);
+                _Bool inHand = throwCard(player, cardIndex);
                 if (!inHand) {
-                    sendMsg(playerIndex, MSG_CARD_NOT_IN_YOUR_HAND);
+                    sendMsg(player, MSG_CARD_NOT_IN_YOUR_HAND);
                     continue;
                 }
                 // 检查该牌是否可打出(同色同数等问题)
                 if (!checkCanPlace(cardIndex)) {
-                    sendMsg(playerIndex, MSG_CARD_CANNOT_BE_PLACE);
-                    putCard(&oneGame.players[playerIndex], cardIndex); // 放回去手牌
+                    sendMsg(player, MSG_CARD_CANNOT_BE_PLACE);
+                    putCard(player, cardIndex); // 放回去手牌
                     continue;
                 }
                 // 卡牌生效
@@ -37,8 +45,8 @@ void gamingLoop() { // 在接收完客户端后调用
                     // 检查颜色参数是否合理
                     if (sscanf(s_cardIndex, "%*d%c", &targetColor) != 1 ||
                         (targetColor != R && targetColor != G && targetColor != B && targetColor != Y)) {
-                        sendMsg(playerIndex, MSG_INVALID_ARGUMENT);
-                        putCard(&oneGame.players[playerIndex], cardIndex); // 放回去手牌
+                        sendMsg(player, MSG_INVALID_ARGUMENT);
+                        putCard(player, cardIndex); // 放回去手牌
                         continue;
                     }
                     takeEffectEx(cardIndex, targetColor); // 特殊牌生效
@@ -49,44 +57,150 @@ void gamingLoop() { // 在接收完客户端后调用
                 markCardAsThrown(cardIndex);
                 // 广播至所有玩家(消息可能与特殊牌效果重复)
                 char content[5];
+                strcpy(content, "");
                 sprintf(content, "%d%3d", playerIndex, cardIndex);
+                char cardStr[4];
+                cardToStr(&oneGame.cardLib[cardIndex], cardStr);
+                printf("Player %d placed card: %s, and it goes to Player %d\n", playerIndex, cardStr,
+                       getNextPlayerIndex());
                 broadcastWithContent(MSG_PLAYER_PLACE_CARD, content);
-                // 进入下一玩家的回合 todo 质疑UNO的部分建议直接给每个玩家多个质疑键用于质疑任意一个玩家
-                oneGame.currentPlayerIndex = getNextPlayerIndex();
+                // 进入下一玩家的回合
+                enterNextPlayerRound();
             } else {
-                sendMsg(playerIndex, MSG_INVALID_ARGUMENT);
+                sendMsg(player, MSG_INVALID_ARGUMENT);
+            }
+            // 检查该玩家是否打光卡牌
+            if (!player->ownedCount) {
+                // 游戏结束, 对每位玩家手牌计分, 广播分数
+                oneGame.gameState = END;
+                char rst[BUF_SIZE];
+                summonResult(rst);
+                printf("Player %d won, other scores are: %s\n", playerIndex, rst);
+                broadcastWithContent(MSG_GAME_OVER, rst);
             }
         } else if (msgType == MSG_QUERY_CARDS) {
             // 玩家查询自身手牌
             char content[MAX_CARDS * 3 + 1];
-            for (int i = 0; i < oneGame.players[playerIndex].ownedCount; i++) {
-                int cardIndex = oneGame.players[playerIndex].ownedCards[i];
-                sprintf(content, "%3d", cardIndex);
+            strcpy(content, "");
+            for (int i = 0; i < player->ownedCount; i++) {
+                int cardIndex = player->ownedCards[i];
+                sprintf(content, "%s%3d", content, cardIndex);
             }
-            sendMsgWithContent(playerIndex, MSG_QUERY_CARDS_RESULT, content);
+            printf("Player %d queried his hand cards, %s\n", playerIndex, content);
+            sendMsgWithContent(player, MSG_QUERY_CARDS_RESULT, content);
         } else if (msgType == MSG_SYNC_GAME_INFO) {
-            // 发送玩家数(1)，各个玩家的手牌数(玩家数*3)，当前回合玩家序号(1)，弃牌堆顶层的牌号(3), \0(1)
-            char content[1 + oneGame.playerCount * 3 + 1 + 3 + 1];
+            // 发送玩家数(1), 查询者自身的玩家序号(1), 各个玩家的手牌数(玩家数*3), 当前回合玩家序号(1)，弃牌堆顶层的牌号(3)
+            char content[1 + 1 + oneGame.playerCount * 3 + 1 + 3 + 1/*'\0'*/];
+            strcpy(content, "");
             sprintf(content, "%d", oneGame.playerCount);
+            sprintf(content, "%s%d", content, playerIndex);
             for (int i = 0; i < oneGame.playerCount; i++) {
-                sprintf(content, "%3d", oneGame.players[i].ownedCount);
+                sprintf(content, "%s%3d", content, oneGame.players[i].ownedCount);
             }
-            sprintf(content, "%d", oneGame.currentPlayerIndex);
-            sprintf(content, "%d", oneGame.cardThrown[oneGame.cardThrownCount - 1]);
-            sendMsgWithContent(playerIndex, MSG_SYNC_GAME_INFO_RESULT, content);
+            sprintf(content, "%s%d", content, oneGame.currentPlayerIndex);
+            sprintf(content, "%s%3d", content,
+                    oneGame.cardThrownCount > 0 ? oneGame.cardThrown[oneGame.cardThrownCount - 1] : -1/*无牌在弃牌堆*/);
+            printf("Player %d synced game info\n", playerIndex);
+            sendMsgWithContent(player, MSG_SYNC_GAME_INFO_RESULT, content);
+        } else if (msgType == MSG_PASS) {
+            // 检查是否是该玩家的回合
+            if (playerIndex != oneGame.currentPlayerIndex) {
+                sendMsg(player, MSG_NOT_YOUR_TURN);
+                continue;
+            }
+            // 广播玩家过牌
+            char content[2];
+            strcpy(content, "");
+            sprintf(content, "%d", playerIndex);
+            printf("Player %d passed his turn, and it goes to Player %d\n", playerIndex, getNextPlayerIndex());
+            broadcastWithContent(MSG_PLAYER_PASSED, content);
+            enterNextPlayerRound();
+        } else if (msgType == MSG_DOUBT) {
+            // 检查是否是该玩家的回合, 只有在该玩家的回合, 他才能质疑别人
+            if (playerIndex != oneGame.currentPlayerIndex) {
+                sendMsg(player, MSG_NOT_YOUR_TURN);
+                continue;
+            }
+            char content[2];
+            int length;
+            parseMsgContent(msg, content, &length);
+            int doubtedPlayerIndex;
+            if (sscanf(content, "%d", &doubtedPlayerIndex) != 1) {
+                sendMsg(player, MSG_INVALID_ARGUMENT);
+                continue;
+            }
+            Player *doubtedPlayer = &oneGame.players[doubtedPlayerIndex];
+            if (doubtedPlayer->ownedCount == 1 && !doubtedPlayer->doubted &&
+                !doubtedPlayer->claimedUNO) { // 只有一张牌且没被质疑过且没宣布UNO过
+                int cardToPutIndex1 = randomlySelectAvailableCard();
+                markCardAsDistributed(cardToPutIndex1);
+                int cardToPutIndex2 = randomlySelectAvailableCard();
+                markCardAsDistributed(cardToPutIndex2);
+                putCard(doubtedPlayer, cardToPutIndex1);
+                putCard(doubtedPlayer, cardToPutIndex2);
+                // 是否质疑成功(len:1), 质疑者(len:1), 被质疑者(len:1), 若质疑成功则追加两张牌的牌号(len:2*3)
+                char response[1 + 1 + 1 + 3 + 3];
+                strcpy(response, "");
+                sprintf(response, "%d", 1);
+                sprintf(response, "%s%d", response, playerIndex);
+                sprintf(response, "%s%d", response, doubtedPlayerIndex);
+                sprintf(response, "%s%3d", response, cardToPutIndex1);
+                sprintf(response, "%s%3d", response, cardToPutIndex2);
+                printf("Player %d doubted Player %d and succeed, put cards:%3d %3d\n", playerIndex, doubtedPlayerIndex,
+                       cardToPutIndex1, cardToPutIndex2);
+                broadcastWithContent(MSG_PLAYER_DOUBTED, response);
+                doubtedPlayer->doubted = TRUE;
+            } else {
+                char response[1 + 1 + 1];
+                strcpy(response, "");
+                sprintf(response, "%d", 0);
+                sprintf(response, "%s%d", response, playerIndex);
+                sprintf(response, "%s%d", response, doubtedPlayerIndex);
+                printf("Player %d doubted Player %d but failed\n", playerIndex, doubtedPlayerIndex);
+                broadcastWithContent(MSG_PLAYER_DOUBTED, response);
+            }
+        } else if (msgType == MSG_UNO) {
+            // 检查是否是该玩家的回合
+            if (playerIndex != oneGame.currentPlayerIndex) {
+                sendMsg(player, MSG_NOT_YOUR_TURN);
+                continue;
+            }
+            // 玩家宣布UNO
+            if (player->ownedCount == 1) {
+                char content[2];
+                sprintf(content, "%d", playerIndex);
+                printf("Player %d claimed UNO\n", playerIndex);
+                broadcastWithContent(MSG_PLAYER_UNOED, content);
+            } else {
+                sendMsg(player, MSG_UNO_FAILED);
+            }
         }
     }
 }
 
 void takeEffectEx(int cardIndex, char targetColor) {
-    // todo 变色 广播 加牌 封禁 +4牌回滚一个玩家以便玩家继续发牌 将currentSignal变为 CHAR_MAX
+    // 改变当前颜色和牌类型
     oneGame.currentColor = targetColor;
     oneGame.currentSignal = CHAR_MAX;
     Card *card = &oneGame.cardLib[cardIndex];
+    Player *player = &oneGame.players[getNextPlayerIndex()];
     if (card->signal == PLUS4) { // +4牌
-
+        char content[1 + 12 + 1]; // 玩家序号(1) 牌号(4*3) \0(1)
+        sprintf(content, "%d", player->index);
+        // 加牌
+        for (int _ = 0; _ < 4; _++) {
+            int cardToPut = randomlySelectAvailableCard();
+            putCard(player, cardToPut);
+            sprintf(content, "%3d", cardToPut);
+        }
+        // 玩家继续出牌
+        oneGame.currentPlayerIndex = getPrePlayerIndex();
+        // 广播
+        broadcastWithContent(MSG_PLUS4, content);
     } else { // 变色牌
-
+        // 广播
+        char color[2] = {oneGame.currentColor, '\0'};
+        broadcastWithContent(MSG_CHANGE_COLOR, color);
     }
 }
 
@@ -96,7 +210,7 @@ void takeEffect(int cardIndex) {
         case BAN: {
             char s_playerIndex[2];
             sprintf(s_playerIndex, "%d", getNextPlayerIndex());
-            oneGame.currentPlayerIndex = getNextPlayerIndex(); // 直接跳过该角色
+            oneGame.currentPlayerIndex = getNextPlayerIndex(); // 直接跳过该角色, 不清除被质疑标记和UNO标记
             broadcastWithContent(MSG_BAN_PLAYER, s_playerIndex);
             break;
         }
@@ -110,9 +224,9 @@ void takeEffect(int cardIndex) {
         case PLUS2: {
             char content[1 + 3 + 3 + 1];
             sprintf(content, "%d", getNextPlayerIndex());
-            oneGame.currentPlayerIndex = getNextPlayerIndex(); // 直接跳过该角色
+            oneGame.currentPlayerIndex = getNextPlayerIndex(); // 直接跳过该角色, 不清除被质疑标记和UNO标记
             for (int _ = 0; _ < 2; _++) {
-                int cardToPut = randomSelectAvailableCard();
+                int cardToPut = randomlySelectAvailableCard();
                 putCard(&oneGame.players[oneGame.currentPlayerIndex], cardToPut);
                 markCardAsDistributed(cardToPut);
                 sprintf(content, "%3d", cardToPut);
@@ -174,11 +288,20 @@ void initCards() {
     }
 }
 
+void initPlayers() {
+    for (int i = 0; i < oneGame.playerCount; ++i) {
+        oneGame.players[i].client = &sockets[i + 1];
+        oneGame.players[i].index = i;
+        oneGame.players[i].ownedCount = 0;
+        oneGame.players[i].doubted = FALSE;
+    }
+}
+
 void distributeCards() {
     srand(time(NULL));
     for (int playerIndex = 0; playerIndex < oneGame.playerCount; ++playerIndex) {
         for (int _ = 0; _ < 7; _++) { // 每个角色取七张牌
-            int target = randomSelectAvailableCard();
+            int target = randomlySelectAvailableCard();
             // 选到目标牌
             markCardAsDistributed(target);
             putCard(&oneGame.players[playerIndex], target);
@@ -186,7 +309,7 @@ void distributeCards() {
     }
 }
 
-int randomSelectAvailableCard() {
+int randomlySelectAvailableCard() {
     int selected = rand() % oneGame.availableCardsCount; // 第 selected 个可用的牌
     int skipped = 0; // 已跳过的可用牌数
     int target = 0; // 目标牌索引
@@ -209,23 +332,61 @@ void markCardAsThrown(int cardIndex) {
     oneGame.cardThrownCount++;
 }
 
-void broadcast(int code) {
+void broadcast(char code) {
     for (int i = 0; i < oneGame.playerCount; ++i) {
-        sendMsg(i, code);
+        sendMsg(&oneGame.players[i], code);
     }
 }
 
-void broadcastWithContent(int code, char *content) {
+void broadcastWithContent(char code, char *content) {
     for (int i = 0; i < oneGame.playerCount; ++i) {
-        sendMsgWithContent(i, code, content);
+        sendMsgWithContent(&oneGame.players[i], code, content);
     }
 }
 
-_Bool checkCanPlace(int cardIndex) { // todo 添加初始时对 CHAR_MAX 的判断
+_Bool checkCanPlace(int cardIndex) {
+    if (oneGame.currentColor == CHAR_MAX) { // 全局第一张牌不用判断
+        return TRUE;
+    }
     Card *card = &oneGame.cardLib[cardIndex];
     return card->signal == oneGame.currentSignal || card->color == oneGame.currentColor || card->color == NO_COLOR;
 }
 
-inline int getNextPlayerIndex() {
-    return oneGame.currentPlayerIndex + (oneGame.turningDirection ? 1 : -1);
+int getNextPlayerIndex() {
+    return (oneGame.currentPlayerIndex + (oneGame.turningDirection ? 1 : -1)) % oneGame.playerCount;
+}
+
+int getPrePlayerIndex() {
+    return (oneGame.currentPlayerIndex - (oneGame.turningDirection ? 1 : -1)) % oneGame.playerCount;
+}
+
+void summonResult(char *content) {
+    char rst[BUF_SIZE];
+    for (int i = 0; i < oneGame.playerCount; ++i) {
+        int score = 0;
+        for (int j = 0; j < oneGame.players[j].ownedCount; ++j) {
+            int cardIndex = oneGame.players[j].ownedCards[j];
+            Card *card = &oneGame.cardLib[cardIndex];
+            if (0 <= card->signal && card->signal <= 9) { // 数字牌计5分
+                score += 5;
+            } else if (10 <= card->signal && card->signal <= 12) { // 功能牌计20分
+                score += 20;
+            } else if (13 <= card->signal && card->signal <= 14) { // 万能拍计40分
+                score += 40;
+            }
+        }
+        sprintf(rst, "%5d", score);
+    }
+    strcpy(content, rst);
+}
+
+void randomlyChooseStarter() {
+    oneGame.currentPlayerIndex = rand() % oneGame.playerCount;
+}
+
+void enterNextPlayerRound() {
+    // 清除自身被质疑过标记和UNO标记
+    oneGame.currentPlayerIndex = getNextPlayerIndex();
+    oneGame.players[oneGame.currentPlayerIndex].doubted = FALSE;
+    oneGame.players[oneGame.currentPlayerIndex].claimedUNO = FALSE;
 }

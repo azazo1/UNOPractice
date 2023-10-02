@@ -23,15 +23,12 @@
 #define CHANGE_COLOR 13 // 没有颜色
 #define PLUS4 14 // 没有颜色
 // }
-
-// 卡牌颜色合集 {
-#define R 'r'
-#define G 'g'
-#define B 'b'
-#define Y 'y'
-#define NO_COLOR 'n'
-// }
 #define MAX_CARDS 108
+// 卡牌颜色合集 { 有谁TM告诉我为什么这里直接用宏定义会报错 error: expected identifier or '(' before 'r'\n #define R 'r'
+enum COLOR {
+    R=0, G=1, B=2, Y=3, NO_COLOR=4
+};
+// }
 
 typedef struct { // UNO的一种卡
     char signal; // 卡牌符号
