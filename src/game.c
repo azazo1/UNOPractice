@@ -4,6 +4,7 @@
 #include "game.h"
 
 void gamingLoop() { // 在接收完客户端后调用
+    broadcast(MSG_GAME_START);
     while (oneGame.gameState == RUNNING) {
         char msg[50];
         int msgLength;
@@ -11,6 +12,7 @@ void gamingLoop() { // 在接收完客户端后调用
         if (playerIndex == -1) {
             printf("Socket Exception occurred, game stopped.\n");
             oneGame.gameState = END;
+            broadcast(MSG_GAME_OVER_WITH_EXCEPTION);
             return;
         }
         Player *player = &oneGame.players[playerIndex];

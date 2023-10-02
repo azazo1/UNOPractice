@@ -7,8 +7,14 @@
 void sendMsg(Player *player, char code) {
     char buf[2] = {code, '\n'};
     int sent = send(*player->client, buf, 2, 0);
+    if (sent < 0) {
+        return;
+    }
     while (sent < 2) {
-        sent += send(*player->client, &buf[sent], 2 - sent, 0);
+        int increment = send(*player->client, &buf[sent], 2 - sent, 0);
+        if (increment < 0) {
+            return;
+        }
     }
 }
 
@@ -38,7 +44,7 @@ int receiveMsg(char *rst, int *length) {
                     char buf0[BUF_SIZE];
                     strcpy(buf0, "");
                     int getLength = recv(sockets[i], buf0, BUF_SIZE, 0);
-                    while (strchr(buf0, '\n') == NULL) { // 直到读取到'\n'才结束
+                    while (strchr(buf0, '\n') == NULL) { // 直到读取到'\n'才结束 todo 有吞掉下一行的风险
                         char buf[BUF_SIZE];
                         strcpy(buf, "");
                         int newLength = recv(sockets[i], buf, BUF_SIZE, 0); // 多读一段
