@@ -5,15 +5,17 @@
 #ifndef UNO_TOCLIENT_H
 #define UNO_TOCLIENT_H
 #define BUF_SIZE 1024
+#define SEND_INTERVAL 500 // 一定要注意！！！send函数不能连续调用！！！不然会出现服务端发送而客户端接受不到的问题
+
 
 #include <time.h>
 #include "player.h"
 #include "server.h"
 #include "msg.h"
 #include <stdarg.h>
+
 #include <windows.h>
 
-#define SEND_INTERVAL 50 // 一定要注意！！！send函数不能连续调用！！！不然会出现服务端发送而客户端接受不到的问题
 #pragma comment(lib, "ws2_32.lib")
 time_t lastSentTime;
 
