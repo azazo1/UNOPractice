@@ -24,11 +24,14 @@ void debugStr(char *dst, char *src) {
 
 void sendMsg(Player *player, char code) {
     char buf[2] = {code, '\n'};
+    waitForNextSend();
     int sent = send(*player->client, buf, 2, 0);
+    time(&lastSentTime);
     if (sent < 0) {
         return;
     }
     while (sent < 2) {
+        waitForNextSend();
         int increment = send(*player->client, &buf[sent], 2 - sent, 0);
         if (increment < 0) {
             return;
@@ -41,8 +44,10 @@ void sendMsgWithContent(Player *player, char code, char *content) {
     char buf[len];
     strcpy(buf, "");
     sprintf(buf, "%c%s\n", code, content);
+    waitForNextSend();
     int sent = send(*player->client, buf, len, 0); // 末尾的 ‘\0' 由于长度限制不会被发送
     while (sent < len) {
+        waitForNextSend();
         sent += send(*player->client, &buf[sent], len - sent, 0);
     }
 }
@@ -138,4 +143,18 @@ int sprintfSafely(char *dest, const char *format, ...) {
     va_end(args);
     strcpy(dest, temp);
     return i;
+}
+
+time_t getTime() {
+    time_t nowTime = time(NULL);
+    SYSTEMTIME nowTimeInMilli;
+    GetSystemTime(&nowTimeInMilli);
+    return nowTime * 1000 + nowTimeInMilli.wMilliseconds;
+}
+
+void waitForNextSend() {
+    while (getTime() - lastSentTime < SEND_INTERVAL) {
+        Sleep(10);
+    }
+    lastSentTime = getTime();
 }
