@@ -24,7 +24,7 @@ typedef enum {
 typedef struct { // 储存一局游戏中的信息
     int playerCount;
     int currentPlayerIndex;
-    char currentColor; // 当前可打出的颜色, 初始为 char 最大值
+    int currentColor; // 当前可打出的颜色, 初始为 char 最大值
     char currentSignal; // 当前可打出的牌类型, 初始为 char 最大值
     int availableCardsCount;
     _Bool turningDirection; // 该变量用于翻转卡, true则正向增大, false则反向减小
@@ -92,7 +92,7 @@ void takeEffect(int cardIndex);
 /**
  * 特殊卡牌(+4/变色)生效
  * */
-void takeEffectEx(int cardIndex, char targetColor);
+void takeEffectEx(int cardIndex, int targetColor);
 
 /**
  * 检查该牌是否可被发出

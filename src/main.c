@@ -23,6 +23,7 @@ int main(int argc, char *argv[]) {
     oneGame.playerCount = playerNumber;
     oneGame.gameState = RUNNING;
     printf("Initializing players...\n");
+    initBuf(); // 初始化套接字接收数据缓冲区
     initPlayers();
     printf("Distributing cards...\n");
     distributeCards();

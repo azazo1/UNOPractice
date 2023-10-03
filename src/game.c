@@ -28,7 +28,7 @@ void gamingLoop() { // 在接收完客户端后调用
             int cardIndex;
             int length;
             parseMsgContent(msg, s_cardIndex, &length);
-            if (sscanf(s_cardIndex, "%d", &cardIndex) == 1) {
+            if (sscanf(s_cardIndex, "%3d", &cardIndex) == 1) {
                 // 检查牌是否在该玩家的手牌中在则打出该牌
                 _Bool inHand = throwCard(player, cardIndex);
                 if (!inHand) {
@@ -43,9 +43,9 @@ void gamingLoop() { // 在接收完客户端后调用
                 }
                 // 卡牌生效
                 if (oneGame.cardLib[cardIndex].signal == CHANGE_COLOR || oneGame.cardLib[cardIndex].signal == PLUS4) {
-                    char targetColor;
+                    int targetColor = -1;
                     // 检查颜色参数是否合理
-                    if (sscanf(s_cardIndex, "%*d%c", &targetColor) != 1 ||
+                    if (sscanf(s_cardIndex, "%*3d%1d", &targetColor) != 1 ||
                         (targetColor != R && targetColor != G && targetColor != B && targetColor != Y)) {
                         sendMsg(player, MSG_INVALID_ARGUMENT);
                         putCard(player, cardIndex); // 放回去手牌
@@ -68,6 +68,7 @@ void gamingLoop() { // 在接收完客户端后调用
                 broadcastWithContent(MSG_PLAYER_PLACE_CARD, content);
                 // 进入下一玩家的回合
                 enterNextPlayerRound();
+                sendMsg(&oneGame.players[oneGame.currentPlayerIndex], MSG_ITS_YOUR_TURN);
             } else {
                 sendMsg(player, MSG_INVALID_ARGUMENT);
             }
@@ -86,7 +87,7 @@ void gamingLoop() { // 在接收完客户端后调用
             strcpy(content, "");
             for (int i = 0; i < player->ownedCount; i++) {
                 int cardIndex = player->ownedCards[i];
-                sprintf(content, "%s%3d", content, cardIndex);
+                sprintfSafely(content, "%s%3d", content, cardIndex);
             }
             printf("Player %d queried his hand cards, %s\n", playerIndex, content);
             sendMsgWithContent(player, MSG_QUERY_CARDS_RESULT, content);
@@ -95,13 +96,14 @@ void gamingLoop() { // 在接收完客户端后调用
             char content[1 + 1 + oneGame.playerCount * 3 + 1 + 3 + 1/*'\0'*/];
             strcpy(content, "");
             sprintf(content, "%d", oneGame.playerCount);
-            sprintf(content, "%s%d", content, playerIndex);
+            sprintfSafely(content, "%s%d", content, playerIndex);
             for (int i = 0; i < oneGame.playerCount; i++) {
-                sprintf(content, "%s%3d", content, oneGame.players[i].ownedCount);
+                sprintfSafely(content, "%s%3d", content, oneGame.players[i].ownedCount);
             }
-            sprintf(content, "%s%d", content, oneGame.currentPlayerIndex);
-            sprintf(content, "%s%3d", content,
-                    oneGame.cardThrownCount > 0 ? oneGame.cardThrown[oneGame.cardThrownCount - 1] : -1/*无牌在弃牌堆*/);
+            sprintfSafely(content, "%s%d", content, oneGame.currentPlayerIndex);
+            sprintfSafely(content, "%s%3d", content,
+                          oneGame.cardThrownCount > 0 ? oneGame.cardThrown[oneGame.cardThrownCount - 1]
+                                                      : -1/*无牌在弃牌堆*/);
             printf("Player %d synced game info\n", playerIndex);
             sendMsgWithContent(player, MSG_SYNC_GAME_INFO_RESULT, content);
         } else if (msgType == MSG_PASS) {
@@ -110,13 +112,21 @@ void gamingLoop() { // 在接收完客户端后调用
                 sendMsg(player, MSG_NOT_YOUR_TURN);
                 continue;
             }
+            // 增加两张牌
+            int card1Index = randomlySelectAvailableCard();
+            putCard(player, card1Index);
+            markCardAsDistributed(card1Index);
+            int card2Index = randomlySelectAvailableCard();
+            putCard(player, card2Index);
+            markCardAsDistributed(card2Index);
             // 广播玩家过牌
-            char content[2];
+            char content[1 + 3 + 3 + 1];
             strcpy(content, "");
-            sprintf(content, "%d", playerIndex);
+            sprintf(content, "%d%3d%3d", playerIndex, card1Index, card2Index);
             printf("Player %d passed his turn, and it goes to Player %d\n", playerIndex, getNextPlayerIndex());
             broadcastWithContent(MSG_PLAYER_PASSED, content);
             enterNextPlayerRound();
+            sendMsg(&oneGame.players[oneGame.currentPlayerIndex], MSG_ITS_YOUR_TURN);
         } else if (msgType == MSG_DOUBT) {
             // 检查是否是该玩家的回合, 只有在该玩家的回合, 他才能质疑别人
             if (playerIndex != oneGame.currentPlayerIndex) {
@@ -144,10 +154,10 @@ void gamingLoop() { // 在接收完客户端后调用
                 char response[1 + 1 + 1 + 3 + 3];
                 strcpy(response, "");
                 sprintf(response, "%d", 1);
-                sprintf(response, "%s%d", response, playerIndex);
-                sprintf(response, "%s%d", response, doubtedPlayerIndex);
-                sprintf(response, "%s%3d", response, cardToPutIndex1);
-                sprintf(response, "%s%3d", response, cardToPutIndex2);
+                sprintfSafely(response, "%s%d", response, playerIndex);
+                sprintfSafely(response, "%s%d", response, doubtedPlayerIndex);
+                sprintfSafely(response, "%s%3d", response, cardToPutIndex1);
+                sprintfSafely(response, "%s%3d", response, cardToPutIndex2);
                 printf("Player %d doubted Player %d and succeed, put cards:%3d %3d\n", playerIndex, doubtedPlayerIndex,
                        cardToPutIndex1, cardToPutIndex2);
                 broadcastWithContent(MSG_PLAYER_DOUBTED, response);
@@ -156,8 +166,8 @@ void gamingLoop() { // 在接收完客户端后调用
                 char response[1 + 1 + 1];
                 strcpy(response, "");
                 sprintf(response, "%d", 0);
-                sprintf(response, "%s%d", response, playerIndex);
-                sprintf(response, "%s%d", response, doubtedPlayerIndex);
+                sprintfSafely(response, "%s%d", response, playerIndex);
+                sprintfSafely(response, "%s%d", response, doubtedPlayerIndex);
                 printf("Player %d doubted Player %d but failed\n", playerIndex, doubtedPlayerIndex);
                 broadcastWithContent(MSG_PLAYER_DOUBTED, response);
             }
@@ -177,10 +187,18 @@ void gamingLoop() { // 在接收完客户端后调用
                 sendMsg(player, MSG_UNO_FAILED);
             }
         }
+        if (oneGame.availableCardsCount < 4) { // 牌库不足, 结束游戏
+            // 游戏结束, 对每位玩家手牌计分, 广播分数
+            oneGame.gameState = END;
+            char rst[BUF_SIZE];
+            summonResult(rst);
+            printf("CardLib exhausted, scores are: %s\n", rst);
+            broadcastWithContent(MSG_GAME_OVER_WITH_CARDLIB_EXHAUSTED, rst);
+        }
     }
 }
 
-void takeEffectEx(int cardIndex, char targetColor) {
+void takeEffectEx(int cardIndex, int targetColor) {
     // 改变当前颜色和牌类型
     oneGame.currentColor = targetColor;
     oneGame.currentSignal = CHAR_MAX;
@@ -188,12 +206,14 @@ void takeEffectEx(int cardIndex, char targetColor) {
     Player *player = &oneGame.players[getNextPlayerIndex()];
     if (card->signal == PLUS4) { // +4牌
         char content[1 + 12 + 1]; // 玩家序号(1) 牌号(4*3) \0(1)
-        sprintf(content, "%d", player->index);
+        strcpy(content, "");
+        sprintf(content, "%d%d", player->index, oneGame.currentColor);
         // 加牌
         for (int _ = 0; _ < 4; _++) {
             int cardToPut = randomlySelectAvailableCard();
+            markCardAsDistributed(cardToPut);
             putCard(player, cardToPut);
-            sprintf(content, "%3d", cardToPut);
+            sprintfSafely(content, "%s%3d", content, cardToPut);
         }
         // 玩家继续出牌
         oneGame.currentPlayerIndex = getPrePlayerIndex();
@@ -201,7 +221,8 @@ void takeEffectEx(int cardIndex, char targetColor) {
         broadcastWithContent(MSG_PLUS4, content);
     } else { // 变色牌
         // 广播
-        char color[2] = {oneGame.currentColor, '\0'};
+        char color[2];
+        sprintf(color, "%d", oneGame.currentColor);
         broadcastWithContent(MSG_CHANGE_COLOR, color);
     }
 }
@@ -231,7 +252,7 @@ void takeEffect(int cardIndex) {
                 int cardToPut = randomlySelectAvailableCard();
                 putCard(&oneGame.players[oneGame.currentPlayerIndex], cardToPut);
                 markCardAsDistributed(cardToPut);
-                sprintf(content, "%3d", cardToPut);
+                sprintfSafely(content, "%s%3d", content, cardToPut);
             }
             broadcastWithContent(MSG_PLUS2, content);
             break;
@@ -364,10 +385,11 @@ int getPrePlayerIndex() {
 
 void summonResult(char *content) {
     char rst[BUF_SIZE];
+    strcpy(rst, "");
     for (int i = 0; i < oneGame.playerCount; ++i) {
         int score = 0;
-        for (int j = 0; j < oneGame.players[j].ownedCount; ++j) {
-            int cardIndex = oneGame.players[j].ownedCards[j];
+        for (int j = 0; j < oneGame.players[i].ownedCount; ++j) {
+            int cardIndex = oneGame.players[i].ownedCards[j];
             Card *card = &oneGame.cardLib[cardIndex];
             if (0 <= card->signal && card->signal <= 9) { // 数字牌计5分
                 score += 5;
@@ -377,7 +399,7 @@ void summonResult(char *content) {
                 score += 40;
             }
         }
-        sprintf(rst, "%5d", score);
+        sprintfSafely(rst, "%s%5d", rst, score);
     }
     strcpy(content, rst);
 }
