@@ -124,4 +124,9 @@ void randomlyChooseStarter();
  * */
 void enterNextPlayerRound();
 
+/**
+ * 检查玩家手牌上是否有牌可以打出
+ * */
+_Bool checkHaveCardToPlace(Player *player);
+
 #endif //UNO_GAME_H

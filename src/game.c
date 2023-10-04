@@ -1,7 +1,9 @@
 //
 // Created by azazo1 on 2023/9/27.
 //
+
 #include "game.h"
+
 
 void gamingLoop() { // 在接收完客户端后调用
     broadcast(MSG_GAME_START);
@@ -178,7 +180,8 @@ void gamingLoop() { // 在接收完客户端后调用
                 continue;
             }
             // 玩家宣布UNO
-            if (player->ownedCount == 1) {
+            if (player->ownedCount == 1 ||// 玩家手上只有一张牌
+                checkHaveCardToPlace(player)) { // 或者玩家手上有两张牌但是有牌可以打出
                 char content[2];
                 sprintf(content, "%d", playerIndex);
                 printf("Player %d claimed UNO\n", playerIndex);
@@ -196,6 +199,15 @@ void gamingLoop() { // 在接收完客户端后调用
             broadcastWithContent(MSG_GAME_OVER_WITH_CARDLIB_EXHAUSTED, rst);
         }
     }
+}
+
+_Bool checkHaveCardToPlace(Player *player) {
+    for (int i = 0; i < player->ownedCount; ++i) {
+        if (checkCanPlace(player->ownedCards[i])) {
+            return TRUE;
+        }
+    }
+    return FALSE;
 }
 
 void takeEffectEx(int cardIndex, int targetColor) {
