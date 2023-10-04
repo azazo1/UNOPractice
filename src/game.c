@@ -376,11 +376,19 @@ _Bool checkCanPlace(int cardIndex) {
 }
 
 int getNextPlayerIndex() {
-    return (oneGame.currentPlayerIndex + (oneGame.turningDirection ? 1 : -1)) % oneGame.playerCount;
+    int new = oneGame.currentPlayerIndex + (oneGame.turningDirection ? 1 : -1);
+    if (new < 0) {
+        new += oneGame.playerCount;
+    }
+    return new % oneGame.playerCount;
 }
 
 int getPrePlayerIndex() {
-    return (oneGame.currentPlayerIndex - (oneGame.turningDirection ? 1 : -1)) % oneGame.playerCount;
+    int new = oneGame.currentPlayerIndex - (oneGame.turningDirection ? 1 : -1);
+    if (new < 0) {
+        new += oneGame.playerCount;
+    }
+    return new % oneGame.playerCount;
 }
 
 void summonResult(char *content) {
